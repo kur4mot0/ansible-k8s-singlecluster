@@ -1,0 +1,38 @@
+---
+  - name: kubeadm join
+    hosts: workers
+    user: _{user}_
+    gather_facts: true
+    serial: 1
+    become: yes
+    #become_method: su
+    #become_flags: -l
+    become_user: root
+  
+    tasks:
+      - name: Kubeadm reset
+        shell: kubeadm reset -f
+
+      - name: Set bridge iptables
+        shell: sysctl net.bridge.bridge-nf-call-iptables=1
+
+      - name: Disable swap
+        shell: swapoff -a
+
+      - name: Copy join to nodes
+        copy:
+            dest: /opt/kubejoin.sh
+            src: ./join/kubejoin.sh
+            mode: '0700'
+            force: yes 
+
+      - name: Run command on remote
+        shell: /opt/kubejoin.sh
+            
+      - name: Clean artifact path
+        file:
+          state: absent
+          path: /opt/kubejoin.sh
+
+                    
+      

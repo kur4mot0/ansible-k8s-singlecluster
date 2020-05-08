@@ -1,0 +1,62 @@
+---
+    - name: Install prerequirements
+      hosts: kubernetes
+      user: dfakto
+      gather_facts: true
+      become: yes
+      #become_method: su
+      #become_flags: -l
+      become_user: root
+
+      tasks:
+        - name: Install vim
+          apt:
+            name: vim
+            state: present 
+      
+        - name: Install docker.io
+          apt:
+            name: docker.io
+            state: present
+        - name: Change docker from cfgroups to systemd
+          copy:
+              dest: /etc/docker
+              src: docker/daemon.json              
+              force: yes                             
+
+        - name: Systemctl enable docker
+          systemd:
+              name: docker
+              enabled: yes
+              daemon_reload: no
+              state: started
+
+        - name: Log into DockerHub
+          shell: docker login --username kuramoto --password '*Kura1985'
+
+        - name: Disable swap
+          shell: swapon -s | swapoff -a
+
+        - name: Install apt-transport-https
+          apt:
+            name: apt-transport-https
+            state: present
+        
+        - name: Add key packages.cloud.google.com
+          apt_key:
+              url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+              state: present
+              validate_certs: yes            
+        
+        - name: Add kubernetes source list
+          lineinfile:
+            path: /etc/apt/sources.list.d/kubernetes.list
+            line: deb http://apt.kubernetes.io/ kubernetes-xenial main
+            create: yes
+        
+        - name: Apt install kubeadm, kubelet, kubectl
+          apt:
+            update_cache: yes
+            name: [ kubeadm, kubelet, kubectl]
+            state: latest
+          

@@ -1,0 +1,11 @@
+[kubernetes]
+master
+workers01
+workers02
+
+[controlapi]
+master
+
+[workers]
+workers01
+workers02

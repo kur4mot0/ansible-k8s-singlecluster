@@ -1,0 +1,92 @@
+---
+  - name: kubeadm init
+    hosts: controlapi
+    user: _{user}_
+    gather_facts: true
+    serial: 1
+    become: yes
+    #become_method: su
+    #become_flags: -l
+    become_user: root
+  
+    tasks:
+      - name: Get Ip  
+        debug: 
+          msg: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+        register: ipmaster
+
+      - name: Kubeadm reset
+        shell: kubeadm reset -f
+
+      - name: Set bridge iptables
+        shell: sysctl net.bridge.bridge-nf-call-iptables=1
+
+      - name: Disable swap
+        shell: swapoff -a
+
+      - name: Remove files
+        file:
+          path: /etc/kubernetes/manifests/kube-apiserver.yaml 
+          force: yes 
+          state: absent 
+
+      - name: Remove files
+        file:
+          path: /etc/kubernetes/manifests/kube-controller-manager.yaml
+          force: yes 
+          state: absent 
+
+      - name: Remove files
+        file:
+          path: /etc/kubernetes/manifests/kube-scheduler.yaml
+          force: yes 
+          state: absent 
+
+      - name: Remove files
+        file:
+          path: /etc/kubernetes/manifests/etcd.yaml
+          force: yes           
+          state: absent 
+      
+      - name: Remove directory
+        file:
+          path: /var/lib/etcd
+          force: yes            
+          recurse: yes 
+          state: directory 
+
+      - name: Remove directory
+        file:
+          path: /etc/kubernetes
+          force: yes            
+          recurse: yes 
+          state: directory 
+        
+      - name: KubeINIT
+        shell: kubeadm init --pod-network-cidr=10.244.10.0/16 --apiserver-advertise-address="{{ ipmaster.msg }}" --kubernetes-version "1.17.2" > /kube/join.txt
+
+      - name: Prepare kubejoin
+        shell: |
+              tail -2 /kube/join.txt > /kube/kubejoin.sh
+              rm -fr /kube/join.txt
+            
+      - name: Bring the configuration under the root user
+        shell: |
+              mkdir -p $HOME/.kube
+              cp /etc/kubernetes/admin.conf $HOME/.kube/config
+              chown $(id -u):$(id -g) $HOME/.kube/config      
+
+      - name: Kubectl network
+        shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+      - name: Get kubejoin
+        fetch:
+            dest: ./join
+            src: /kube/kubejoin.sh
+            
+      - name: Structure files
+        shell: |
+              cp join/{{inventory_hostname}}/kube/kubejoin.sh join/  
+              rm -fr join/{{inventory_hostname}}
+        delegate_to: localhost
+        become: no
